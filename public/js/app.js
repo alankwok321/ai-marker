@@ -87,7 +87,7 @@ async function markAssignment() {
     if (!res.ok) throw new Error(await res.text());
     
     const data = await res.json();
-    displayResults(data);
+    displayOCRResult(data);
   } catch (err) {
     alert('批改失敗：' + err.message);
   } finally {
@@ -95,7 +95,95 @@ async function markAssignment() {
   }
 }
 
-function displayResults(data) {
+function displayOCRResult(data) {
+  const resultsSection = document.getElementById('resultsSection');
+  const results = document.getElementById('results');
+  
+  results.innerHTML = `
+    <h3>📄 識別的文字</h3>
+    <div style="background: var(--gray-100); padding: 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.95rem; line-height: 1.8; color: var(--gray-700); max-height: 300px; overflow-y: auto;">
+      ${data.extractedText}
+    </div>
+    
+    <div style="display: flex; gap: 8px;">
+      <button onclick="confirmAndMark()" class="btn btn-primary" style="flex: 1;">✅ 確認無誤，開始批改</button>
+      <button onclick="editOCRText()" class="btn btn-outline" style="flex: 1;">✏️ 編輯文字</button>
+    </div>
+    
+    <div id="editPanel" style="display: none; margin-top: 16px;">
+      <textarea id="editedText" class="textarea" rows="8"></textarea>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button onclick="saveEditedText()" class="btn btn-primary" style="flex: 1;">💾 儲存並批改</button>
+        <button onclick="cancelEdit()" class="btn btn-outline" style="flex: 1;">❌ 取消</button>
+      </div>
+    </div>
+  `;
+  
+  // Store data for later use
+  window.currentMarkData = data;
+  
+  resultsSection.style.display = 'block';
+  resultsSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function editOCRText() {
+  document.getElementById('editedText').value = window.currentMarkData.extractedText;
+  document.getElementById('editPanel').style.display = 'block';
+}
+
+function cancelEdit() {
+  document.getElementById('editPanel').style.display = 'none';
+}
+
+function saveEditedText() {
+  const editedText = document.getElementById('editedText').value;
+  window.currentMarkData.extractedText = editedText;
+  confirmAndMark();
+}
+
+async function confirmAndMark() {
+  showLoading(true);
+  
+  try {
+    const systemPrompt = `You are an expert teacher marking student work. 
+${document.getElementById('answerKey').value ? `Answer Key:\n${document.getElementById('answerKey').value}\n` : ''}
+${document.getElementById('rubric').value ? `Rubric:\n${document.getElementById('rubric').value}\n` : ''}
+Respond with ONLY valid JSON (no markdown):
+{
+  "score": <number>,
+  "maxScore": <number>,
+  "feedback": "<feedback>",
+  "strengths": ["<strength1>", "<strength2>"],
+  "improvements": ["<improvement1>", "<improvement2>"]
+}`;
+
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const apiBaseUrl = document.getElementById('apiBaseUrl').value.trim();
+    
+    const res = await fetch('/api/mark-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: window.currentMarkData.extractedText,
+        answerKey: document.getElementById('answerKey').value,
+        rubric: document.getElementById('rubric').value,
+        apiKey,
+        apiBaseUrl
+      })
+    });
+    
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    
+    displayMarkingResult(result, window.currentMarkData.extractedText);
+  } catch (err) {
+    alert('批改失敗：' + err.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function displayMarkingResult(data, extractedText) {
   const resultsSection = document.getElementById('resultsSection');
   const results = document.getElementById('results');
   
@@ -112,12 +200,10 @@ function displayResults(data) {
       </div>
     </div>
     
-    ${data.extractedText ? `
-      <h3>📄 識別的文字</h3>
-      <div style="background: var(--gray-100); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; line-height: 1.6; color: var(--gray-700);">
-        ${data.extractedText}
-      </div>
-    ` : ''}
+    <h3>📄 學生答案</h3>
+    <div style="background: var(--gray-100); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; line-height: 1.6; color: var(--gray-700);">
+      ${extractedText}
+    </div>
     
     <h3>📝 反饋</h3>
     <p>${data.feedback}</p>

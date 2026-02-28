@@ -98,16 +98,26 @@ app.post('/api/mark', upload.single('file'), async (req, res) => {
       extractedText = await ocrImage(b64, mimeType, apiKey, apiBaseUrl);
     } catch (ocrErr) {
       console.error('OCR error:', ocrErr);
-      extractedText = '[OCR failed - using image directly]';
+      extractedText = '[OCR failed]';
     }
 
-    // Step 2: Mark the extracted text
+    res.json({ extractedText });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/mark-text — mark text-based submissions
+app.post('/api/mark-text', async (req, res) => {
+  try {
+    const { text, answerKey, rubric, apiKey, apiBaseUrl } = req.body;
+    if (!text) return res.status(400).json({ error: 'No text provided' });
+
     const systemPrompt = `You are an expert teacher marking student work. 
 ${answerKey ? `Answer Key:\n${answerKey}\n` : ''}
 ${rubric ? `Rubric:\n${rubric}\n` : ''}
 Respond with ONLY valid JSON (no markdown):
 {
-  "extractedText": "<text extracted from image>",
   "score": <number>,
   "maxScore": <number>,
   "feedback": "<feedback>",
@@ -116,16 +126,13 @@ Respond with ONLY valid JSON (no markdown):
 }`;
 
     const messages = [
-      {
-        role: 'user',
-        content: `Please mark this student work:\n\n${extractedText}`
-      }
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Please mark this student work:\n\n${text}` }
     ];
 
-    const raw = await callAI([{ role: 'system', content: systemPrompt }, ...messages], apiKey, apiBaseUrl);
+    const raw = await callAI(messages, apiKey, apiBaseUrl);
     let cleaned = raw.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '');
     const result = JSON.parse(cleaned);
-    result.extractedText = extractedText;
     
     res.json(result);
   } catch (err) {
@@ -133,6 +140,7 @@ Respond with ONLY valid JSON (no markdown):
   }
 });
 
+// Wildcard route (must be last)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
