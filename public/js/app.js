@@ -112,6 +112,13 @@ function displayResults(data) {
       </div>
     </div>
     
+    ${data.extractedText ? `
+      <h3>📄 識別的文字</h3>
+      <div style="background: var(--gray-100); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem; line-height: 1.6; color: var(--gray-700);">
+        ${data.extractedText}
+      </div>
+    ` : ''}
+    
     <h3>📝 反饋</h3>
     <p>${data.feedback}</p>
     

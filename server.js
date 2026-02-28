@@ -47,6 +47,42 @@ async function callAI(messages, clientApiKey, clientBaseUrl) {
   return data.choices[0].message.content;
 }
 
+// Helper: OCR image using AI Vision
+async function ocrImage(b64, mimeType, clientApiKey, clientBaseUrl) {
+  const baseUrl = (clientBaseUrl || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const apiKey = clientApiKey || process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) throw new Error('API Key not provided');
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Please extract all text from this image. Return ONLY the extracted text, nothing else.' },
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${b64}`, detail: 'high' }
+            }
+          ]
+        }
+      ],
+      max_tokens: 2000
+    })
+  });
+
+  if (!response.ok) throw new Error(`OCR API error: ${response.status}`);
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
 // POST /api/mark
 app.post('/api/mark', upload.single('file'), async (req, res) => {
   try {
@@ -56,11 +92,22 @@ app.post('/api/mark', upload.single('file'), async (req, res) => {
     const b64 = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
 
+    // Step 1: OCR the image
+    let extractedText = '';
+    try {
+      extractedText = await ocrImage(b64, mimeType, apiKey, apiBaseUrl);
+    } catch (ocrErr) {
+      console.error('OCR error:', ocrErr);
+      extractedText = '[OCR failed - using image directly]';
+    }
+
+    // Step 2: Mark the extracted text
     const systemPrompt = `You are an expert teacher marking student work. 
 ${answerKey ? `Answer Key:\n${answerKey}\n` : ''}
 ${rubric ? `Rubric:\n${rubric}\n` : ''}
 Respond with ONLY valid JSON (no markdown):
 {
+  "extractedText": "<text extracted from image>",
   "score": <number>,
   "maxScore": <number>,
   "feedback": "<feedback>",
@@ -68,17 +115,17 @@ Respond with ONLY valid JSON (no markdown):
   "improvements": ["<improvement1>", "<improvement2>"]
 }`;
 
-    const content = [
-      { type: 'text', text: 'Please mark this student work.' },
+    const messages = [
       {
-        type: 'image_url',
-        image_url: { url: `data:${mimeType};base64,${b64}`, detail: 'high' }
+        role: 'user',
+        content: `Please mark this student work:\n\n${extractedText}`
       }
     ];
 
-    const raw = await callAI([{ role: 'user', content }], apiKey, apiBaseUrl);
+    const raw = await callAI([{ role: 'system', content: systemPrompt }, ...messages], apiKey, apiBaseUrl);
     let cleaned = raw.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '');
     const result = JSON.parse(cleaned);
+    result.extractedText = extractedText;
     
     res.json(result);
   } catch (err) {
