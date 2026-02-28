@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 批改助手</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>✏️ AI 批改助手</h1>
+      <p>上傳學生作業，AI 自動批改並提供反饋</p>
+    </header>
+
+    <main>
+      <!-- API Settings -->
+      <section class="card">
+        <h2>API 設定</h2>
+        <div class="form-group">
+          <label>API Base URL</label>
+          <input type="text" id="apiBaseUrl" placeholder="https://api.openai.com/v1" class="input">
+          <small>留空使用預設</small>
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <div class="input-group">
+            <input type="password" id="apiKey" placeholder="sk-..." class="input">
+            <button onclick="toggleKeyVisibility()" class="btn-icon">👁️</button>
+          </div>
+          <small>金鑰只儲存在瀏覽器</small>
+        </div>
+        <div class="button-group">
+          <button onclick="saveApiSettings()" class="btn btn-primary">💾 儲存</button>
+          <button onclick="clearApiSettings()" class="btn btn-outline">🗑️ 清除</button>
+        </div>
+        <div id="apiStatus" class="status"></div>
+      </section>
+
+      <!-- Upload Section -->
+      <section class="card">
+        <h2>上傳作業</h2>
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon">📤</div>
+          <p>拖放檔案或點擊上傳</p>
+          <small>JPG, PNG, PDF — 最大 20MB</small>
+          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" hidden>
+        </div>
+        <div id="fileInfo" class="file-info"></div>
+      </section>
+
+      <!-- Marking Options -->
+      <section class="card">
+        <h2>批改選項</h2>
+        <div class="form-group">
+          <label>參考答案（選填）</label>
+          <textarea id="answerKey" placeholder="輸入正確答案..." rows="4" class="textarea"></textarea>
+        </div>
+        <div class="form-group">
+          <label>評分標準（選填）</label>
+          <textarea id="rubric" placeholder="輸入評分準則..." rows="3" class="textarea"></textarea>
+        </div>
+        <button onclick="markAssignment()" id="markBtn" class="btn btn-primary btn-large" disabled>���� 開始批改</button>
+      </section>
+
+      <!-- Results -->
+      <section id="resultsSection" class="card" style="display:none;">
+        <h2>批改結果</h2>
+        <div id="results"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>AI Marker © 2026 | 由 AI 驅動的智能批改工具</p>
+    </footer>
+  </div>
+
+  <div id="loading" class="loading" style="display:none;">
+    <div class="spinner"></div>
+    <p>AI 正在批改作業...</p>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
